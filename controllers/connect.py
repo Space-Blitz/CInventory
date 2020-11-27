@@ -1,15 +1,20 @@
+import requests
+
 import psycopg2
 import psycopg2.extras
 from flask import jsonify, abort
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, get_jwt_identity
 
-from multiprocessing import Process
+
+
 import datetime
 import time
+from  uuid import uuid4
 
-from models.constants import DATABASE_URL
+from controllers.extensions import task_after_function
+from models.constants import DATABASE_URL, MM_URL, FL_KEY, FRONTEND_URL
 
-
+currency = 'UGX'
 class Database():
     """
     Handle database connections
@@ -24,6 +29,12 @@ class Database():
         connection.autocommit = True
         self.cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         self.create_tables()
+    
+    def __del__(self): 
+        """
+        Close database connection
+        """
+        self.cursor.close()
 
 
     def create_tables(self):
@@ -54,8 +65,8 @@ class Database():
                 total VARCHAR (250) NOT NULL,
                 time TIMESTAMP NOT NULL,
                 date_booked_for TIMESTAMP NOT NULL,
-                payment_type varchar(25) check (payment_type in ('cash', 'bank transfer/visa')) DEFAULT 'pending',
-                payment_status varchar(25) check (payment_status in ('pending', 'complete', 'canceled')) DEFAULT 'pending',
+                payment_type varchar(25) check (payment_type in ('cash on arrival', 'bank transfer/visa', 'mobile money')) DEFAULT 'cash on arrival',
+                payment_status varchar(25) check (payment_status in ('pending', 'successful', 'failed','expired')) DEFAULT 'pending',
                 payment_id VARCHAR (250) NULL,
                 filled_status varchar(25) check (filled_status in ('pending', 'utilized', 'canceled')) DEFAULT 'pending'
             );
@@ -66,6 +77,15 @@ class Database():
                 name VARCHAR (250) NOT NULL,
                 time TIMESTAMP NOT NULL,
                 description VARCHAR (250) NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS mobile_payments(
+                id SERIAL PRIMARY KEY,
+                amount INT NOT NULL,
+                price INT NOT NULL,
+                user_id INT NOT NULL,
+                tx_ref VARCHAR (250) NOT NULL unique,
+                phone_number VARCHAR (250) NOT NULL,
+                time TIMESTAMP NOT NULL
             );
             CREATE TABLE IF NOT EXISTS payments(
                 payment_id SERIAL PRIMARY KEY,
@@ -153,17 +173,22 @@ class Database():
         """
         Check if password password is equal to password in database
         """
-        user = self.get_from_users('password,surname,email,contact,admin',email,"and password = '"+password+"'")
+        user = self.get_from_users('user_id,password,surname,email,contact,admin',email,"and password = '"+password+"'")
+        contact = user.get('contact')
+        surname= user.get('surname')
+        admin = user.get('admin')
         access_token = create_access_token(
             identity={
-            'surname':user.get('surname'),
-            'email':user.get('email'),
-            'contact':user.get('contact')
+            'surname':surname,
+            'user_id':user.get('user_id'),
+            'admin':admin,
+            'email':email,
+            'contact':contact
             },
             expires_delta=datetime.timedelta(days=40)
         )
         # print(db_password.get('password'))
-        return access_token
+        return {'token': access_token,'email':email,'username':surname,'contact': contact} 
     
     # select to_char(date_created::timestamp, 'DD Mon YYYY HH:MI:SSPM') from users
     def signup(self,email,password,surname, othernames, contact):
@@ -197,8 +222,7 @@ class Database():
             print(str(identifier))
 
             abort(400,description="user already exists")#aborts in case user email or contact already exists
-        
-    
+
     def activate_user(self,email):
         """
         Check if password password is equal to password in database
@@ -214,6 +238,119 @@ class Database():
         except Exception as identifier:
             print(str(identifier))
             abort(400,description="Invalid token activation.")#aborts in case user activation fails.
+
+
+    def insertPayment(self,data):
+        """
+        Check if password password is equal to password in database
+        """
+
+
+
+        user_info = get_jwt_identity()
+        user_id = user_info.get('user_id')
+        email =data['email']= user_info.get('email')
+        type_id = data.get('type_id')
+        type_name = data.get('type_name')
+        amount =data['amount']= data.get('price')*data.get('rooms')
+        rooms = data.get('rooms')
+        price= data.get('price')
+        date_booked_for = data.get('date_booked_for')
+        phone_number = data.get('phone_number')
+        payment_id = data['tx_ref']='mobilemoney_'+str(uuid4()).replace('-', '')
+        
+        
+        insert_query="""
+        INSERT INTO bookings (user_id, type_id, type_name, price, rooms, total, time, date_booked_for, payment_type,  payment_id) 
+        values ('{user_id}','{type_id}','{type_name}','{price}','{rooms}','{amount}',now(),'{date_booked_for}','mobile money','{payment_id}');
+        INSERT INTO mobile_payments (amount, price, tx_ref,user_id,phone_number, time ) 
+        values ('{amount}','{price}','{payment_id}','{user_id}','{phone_number}',now());
+        """.format(
+            amount=amount,
+            user_id=user_id,
+            email=email,
+            type_id=type_id,
+            type_name=type_name, 
+            rooms=rooms,
+            price=price,
+            date_booked_for=date_booked_for,
+            phone_number=phone_number,
+            payment_id=payment_id
+        )#sql query for inserting new users
+        
+        try:
+            data['redirect_url']= FRONTEND_URL+'/transactions'
+            print(MM_URL)
+            print(data['redirect_url'])
+            response = requests.post(url=MM_URL,data=data, headers={'Authorization': 'Bearer '+FL_KEY})
+            task_after_function(
+                target=Database.execute_after_request,
+                args=[insert_query,],
+                daemon=True
+            ).start()
+
+            return (response.json())['meta']['authorization']['redirect']
+        except Exception as identifier:
+            print(str(identifier))
+
+            abort(400,description=str(identifier))#aborts in case user email or contact already exists
+        
+    
+    
+    def get_all_transactions(self):
+        """
+        Get all user transactions
+        """
+        user_info=get_jwt_identity()
+        user_id = user_info.get('user_id')
+        is_admin = user_info.get('admin')
+        transactions_query="""
+        select users.surname||' ' || users.othernames as name, bookings.booking_id,
+        bookings.date_booked_for, bookings.total, bookings.rooms, bookings.type_name,
+        bookings.payment_status, bookings.filled_status, users.email
+        from users join bookings on
+        bookings.user_id=users.user_id
+        """
+        if not is_admin:
+            transactions_query+=" where user_id='{user_id}'".format(user_id=user_id)
+        return self.execute_query(transactions_query)
+
+    @staticmethod# so that ts callable without initializing the class
+    def update_payment(status,payment_id):
+        """Update payment
+        """
+        try:
+            update_query="""update bookings set payment_status='{status}'
+            where payment_id = '{payment_id}' and payment_status!='successful'
+            """.format(
+                status=status,
+                payment_id=payment_id
+            )  
+            execution=Database()
+            execution.cursor.execute(update_query)
+            print('successful')
+        except Exception as error:
+            print('failed to udpate transaction\n')
+            print(str(error))
+        
+    
+    @staticmethod# so that ts callable without initializing the class
+    def execute_after_request(query):
+        """
+        executes query after request response is returned.
+        The function also logs any issues that may occur during execution
+        params: 
+            :query (str): query that will be run
+        returns:
+            :None
+        """
+        try:
+            connection = Database()
+            execution = connection.cursor.execute(query)
+            print('successful execution after request')
+        except Exception as error:
+            print('Error on execution after request\n',str(error))
+
 
 
 db = Database()

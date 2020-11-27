@@ -14,7 +14,10 @@ app = flask.Flask(__name__)
 CORS(app)
 
 app.config.from_object(app_config[ENVIRONMENT])
+
+#jwt configurations
 jwt = JWTManager(app)
+blacklist = set()
 
 app.register_blueprint(auth)
 app.register_blueprint(payment)
@@ -35,6 +38,14 @@ def resource_not_found(e):
 @app.errorhandler(400)
 def bad_request(e):
     return jsonify(error=str(e.description)), 400
+
+
+@jwt.token_in_blacklist_loader
+def check_if_token_in_blacklist(decrypted_token):
+    unique_identifier = decrypted_token['jti']
+    return unique_identifier in blacklist
+
+
 
 if __name__ == "__main__":
     app.run()

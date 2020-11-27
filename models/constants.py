@@ -32,3 +32,15 @@ Environment variables
 """
 ENVIRONMENT=os.getenv('ENVIRONMENT')
 
+"""
+Frontend url
+"""
+FRONTEND_URL=os.getenv('FRONTEND_URL')
+
+"""
+FLUTTERWAVE KEYS
+"""
+MM_URL=os.getenv('MM_URL')
+FL_KEY=os.getenv('FL_KEY')
+SECRET_HASH=os.getenv('SECRET_HASH')
+
