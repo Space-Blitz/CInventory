@@ -27,5 +27,3 @@ To run this repository locally:
 - Activate the virtual environment
 - Install all the required packages
 - Run the project
-
-
