@@ -11,9 +11,9 @@ inventory = Blueprint('inventory', __name__)
 table_name = 'items'
 @inventory.route('/api/v1/items', methods=['POST'])
 @jwt_required
-def submit_mobile_money_payment():
+def add_item():
     """f
-    Make any paymnets
+    add new item
     returns: user data
     """
     data = request.get_json()
@@ -23,9 +23,9 @@ def submit_mobile_money_payment():
 
 @inventory.route('/api/v1/items/<doc_id>', methods=['PUT'])
 @jwt_required
-def update_document(doc_id):
+def update_item(doc_id):
     """
-    Make any paymnets
+    Update Items
     returns: user data
     """
     data = request.get_json()
@@ -36,20 +36,30 @@ def update_document(doc_id):
 
 @inventory.route('/api/v1/items', methods=['GET'])
 @jwt_required
-def get_transactions():
+def get_all_items():
     """
-    Make any paymnets
-    returns: user data
+    Get all items
+    returns: items
     """
     rows= db.get_all_items()
+    return jsonify(rows), 200
+
+@inventory.route('/api/v1/items/<doc_id>', methods=['GET'])
+@jwt_required
+def get_item(doc_id):
+    """
+    Get all items
+    returns: items
+    """
+    rows= db.get_item(doc_id)
     return jsonify(rows), 200
 
 
 @inventory.route('/api/v1/items/<doc_id>', methods=['DELETE'])
 @jwt_required
-def get_accomodation_types(doc_id):
+def delete_item(doc_id):
     """
-    Make any paymnets
+    Delete item
     returns: user data
     """
     db.delete_item(table_name,doc_id)

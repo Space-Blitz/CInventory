@@ -1,3 +1,3 @@
 LOGIN=['email','password']
-REGISTER=['contact', 'surname', 'othernames','email']
+REGISTER=['surname', 'othernames','email', 'password']
 INVENTORY=["price","name","number_added","description"]

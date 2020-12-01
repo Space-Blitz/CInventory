@@ -42,8 +42,7 @@ def register():
         data.get('email'),
         data.get('password'),
         data.get('surname'),
-        data.get('othernames'),
-        data.get('contact')
+        data.get('othernames')
     )
     return jsonify({'message':'Successful registration. Please login'}), 200
 

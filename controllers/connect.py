@@ -48,7 +48,6 @@ class Database():
                 surname VARCHAR (250) NOT NULL,
                 othernames VARCHAR (250) NOT NULL,
                 email VARCHAR (250) NOT NULL UNIQUE,
-                contact VARCHAR (250) NOT NULL UNIQUE,
                 password VARCHAR (250) NOT NULL,
                 date_created TIMESTAMP NULL,
                 admin BOOLEAN NOT NULL DEFAULT FALSE,
@@ -86,10 +85,10 @@ class Database():
         returns:n/a
         """
         sql_command = """
-        INSERT INTO users (surname,othernames,email,contact,password,date_created,admin) 
-        values ('Admin1','Saed','i-sendit@gmail.com','07888392838','doNot2114',now(),'t');
-        INSERT INTO users (surname,othernames,email,contact,password,date_created,admin) 
-        values ('Test','User','meKendit@gmail.com','0788892838','ddwoNot2114',now(),'f');
+        INSERT INTO users (surname,othernames,email,password,date_created,admin) 
+        values ('Admin1','Saed','i-sendit@gmail.com','doNot2114',now(),'t');
+        INSERT INTO users (surname,othernames,email,password,date_created,admin) 
+        values ('Test','User','meKendit@gmail.com','ddwoNot2114',now(),'f');
         """# inserts admin user and  one test user
         
         sql_command1 = """
@@ -127,8 +126,8 @@ class Database():
         """
         Check if password password is equal to password in database
         """
-        user = self.get_from_users('user_id,password,surname,email,contact,admin',email,"and password = '"+password+"'")
-        contact = user.get('contact')
+        user = self.get_from_users('user_id,password,surname,email,admin',email,"and password = '"+password+"'")
+
         surname= user.get('surname')
         admin = user.get('admin')
         access_token = create_access_token(
@@ -137,27 +136,27 @@ class Database():
             'user_id':user.get('user_id'),
             'admin':admin,
             'email':email,
-            'contact':contact
+
             },
             expires_delta=datetime.timedelta(days=40)
         )
-        # print(db_password.get('password'))
-        return {'token': access_token,'email':email,'username':surname,'contact': contact} 
-    
-    # select to_char(date_created::timestamp, 'DD Mon YYYY HH:MI:SSPM') from users
-    def signup(self,email,password,surname, othernames, contact):
+
+        return {'token': access_token,'email':email,'username':surname} 
+
+
+    def signup(self,email,password,surname, othernames):
         """
-        Check if password password is equal to password in database
+        Sign up a user
         """
         insert_query="""
-        INSERT INTO users (surname,othernames,email,contact,password,date_created,admin) 
-        values ('{surname}','{othernames}','{email}','{contact}','{password}',now(),'f');\
+        INSERT INTO users (surname,othernames,email,password,date_created,admin) 
+        values ('{surname}','{othernames}','{email}','{password}',now(),'f');\
         """.format(
             email=email,
             password=password,
             surname=surname,
-            othernames=othernames,
-            contact=contact
+            othernames=othernames
+
         )#sql query for inserting new users
         
         try:
@@ -166,7 +165,7 @@ class Database():
             identity={
             'surname':surname,
             'email':email,
-            'contact':contact,
+
             'activation':True
             },
             expires_delta=datetime.timedelta(days=4000)
@@ -175,11 +174,11 @@ class Database():
         except Exception as identifier:
             print(str(identifier))
 
-            abort(400,description="user already exists")#aborts in case user email or contact already exists
+            abort(400,description="user already exists")#aborts in case user email already exists
 
     def update_item(self,data, doc_id):
         """
-        Check if password password is equal to password in database
+        Update item in database
         """
         user_info = get_jwt_identity()
         user_id = user_info.get('user_id')
@@ -211,12 +210,12 @@ class Database():
             return True
         except Exception as identifier:
             print(str(identifier))
-            abort(400,description=str(identifier))#aborts in case user email or contact already exists
+            abort(400,description=str(identifier))#aborts in case user email already exists
 
 
     def insert_item_into_inventory(self,data):
         """
-        Check if password password is equal to password in database
+        Insert items into inventory
         """
 
 
@@ -247,7 +246,7 @@ class Database():
         except Exception as identifier:
             print(str(identifier))
 
-            abort(400,description=str(identifier))#aborts in case user email or contact already exists
+            abort(400,description=str(identifier))#aborts in case user email already exists
         
     def delete_item(self,table_name, doc_id):
         """Deletes item from database
@@ -267,7 +266,7 @@ class Database():
     
     def get_all_items(self):
         """
-        Get all user transactions
+        Get all items
         """
         user_info=get_jwt_identity()
         user_id = user_info.get('user_id')
@@ -277,7 +276,23 @@ class Database():
         join users on items.user_id=users.user_id
         """
         if not is_admin:
-            transactions_query+=" where user_id='{user_id}'".format(user_id=user_id)
+            transactions_query+=" where items.user_id='{user_id}'".format(user_id=user_id)
+        return self.execute_query(transactions_query)
+    
+    def get_item(self, doc_id):
+        """
+        Get one item
+        """
+        user_info=get_jwt_identity()
+        user_id = user_info.get('user_id')
+        is_admin = user_info.get('admin')
+        transactions_query="""
+        select items.item_name as name,items.*, users.surname from items
+        join users on items.user_id=users.user_id
+        """
+        if not is_admin:
+            transactions_query+=" where items.user_id='{user_id}'".format(user_id=user_id)
+        transactions_query+=" and items.id='{doc_id}'".format(doc_id=doc_id)
         return self.execute_query(transactions_query)
 
 
