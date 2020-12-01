@@ -7,7 +7,7 @@ from controllers.connect import db, Database
 
 
 inventory = Blueprint('inventory', __name__)
-# doctype_credit = 'credit'
+
 table_name = 'items'
 @inventory.route('/api/v1/items', methods=['POST'])
 @jwt_required
