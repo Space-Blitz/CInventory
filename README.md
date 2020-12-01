@@ -1,8 +1,8 @@
-# KARI HOTEL MANAGEMENT SYSTEM BACKEND
+# Inventory Management
 
 ## DESCRIPTION
 
-Kari hotel management system backend is a management API service that handles management of data for Kari Hotel.
+Inventory management is a management API service that handles management of Collins inventory.
 
 
 ## TECHNOLOGIES

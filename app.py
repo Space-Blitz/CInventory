@@ -6,7 +6,7 @@ from flask_jwt_extended import JWTManager
 from models.constants import ENVIRONMENT
 from config import app_config
 from views.auth import auth
-from views.payments import payment
+from views.inventory import inventory
 
 
 
@@ -20,14 +20,14 @@ jwt = JWTManager(app)
 blacklist = set()
 
 app.register_blueprint(auth)
-app.register_blueprint(payment)
-
-### swagger specific ###
-### end swagger specific ###
+app.register_blueprint(inventory)
 
 @app.route('/', methods=['GET'])
 def home():
-    return '''<h1>Kari Hotel | v2</h1>
+    """
+    Called every time there is a bad request
+    """
+    return '''<h1>Inventory | v2</h1>
             <p>Accomodation at ts best.</p>'''
 
 
@@ -37,11 +37,17 @@ def resource_not_found(e):
 
 @app.errorhandler(400)
 def bad_request(e):
+    """
+    Called every time there is a bad request
+    """
     return jsonify(error=str(e.description)), 400
 
 
 @jwt.token_in_blacklist_loader
 def check_if_token_in_blacklist(decrypted_token):
+    """
+    Check if a user is logged out
+    """
     unique_identifier = decrypted_token['jti']
     return unique_identifier in blacklist
 
